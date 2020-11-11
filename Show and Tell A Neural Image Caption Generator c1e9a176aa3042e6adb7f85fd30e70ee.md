@@ -181,6 +181,18 @@ S0~St-1까지의 입력(correct transcription)과 입력 이미지는 t=t의 hid
 
     학습 자체는 loss를 통해서 한다 해도, 생성된 결과가 truth와 비슷한지를 판단하는 것은 새로운 기준이 필요하다. (예를 들어 Yellow bird is flying high가 description인데 yellow bird is flying low면 0점을 줘야하는가? 그렇지 않다. loss를 학습할 때는 word단위여서 상관이 없지만 결과를 평가하고 hyper parameter tuning을 위해선 조절이 필요하다.)
 
+    대게 BLEU를 사용하고, 여기서는 BLEU with 1-gram을 통해서 evaluation을 진행했다.
+
+2. Perplexity 
+
+    추정된 단어 확률 (softmax 거친것)의 역수의 기하평균으로, hyper parameter tuning에 사용
+
+    PPL을 최소화 할수록 언어모델의 성능이 좋은 것을 의미한다.
+
+3. 사용한 데이터셋.
+
+    Pascal VOC 2008, Flickr8k, Flickr30k, COCO 이렇게 5개는 caption이 존재하는 데이터셋이고, 1M개의 SBU dataset의 경우 description이 존재하나, 믿을만한지 의문이 드는 데이터 셋.
+
 # Code Implementation.
 
 논문에 언급된 바를 정리해보자.
@@ -191,8 +203,49 @@ S0~St-1까지의 입력(correct transcription)과 입력 이미지는 t=t의 hid
     - Dropout + Ensembling을 통해서 overfitting issue를 피하려고 했다.
 3. CNN의 마지막 FC1000(ImageNet에 대한 것이니까)을 제거하고, last hidden layer의 feature들을 LSTM에 t=-1번째 입력으로 넣는다. 
 4. 그뒤 t=0~t=t까지 N-1개의 word embedding vector를 OHE 형식으로 만들어서 LSTM에 넣어준다.
+5. 모든 Weight은 SGD로 학습해주었고, momentum 없이 LR을 고정해서 학습시켰다.
+6. w2v랑 feature모두 512로 embedding해서 넣어준다.
+7. overfitting을 방지하기 위해서 dropout을 넣어주니 BLEU가 2 올라갔다고 한다.
 
-자세한 사항은 ipynb파일을 참고하자.
+첫번째 시도는 LR 0.001, Batch size 128, EPOCH : 10으로 학습을 진행해보았다.
+
+LR을 0.001로 설정한 이유는 CNN이 pretrained였기에 transfer learning과 유사할 것이라 상정하고 낮게 잡은것.
+
+하지만, loss가 쉽사리 줄지 않았기에 Learning rate의 증가가 필요해 보였다. 
+
+→ epoch이 늘어남에 따라서 loss가 지속적으로 감소하는 것은 확인할 수 있었지만, 동일한 epoch과 LR에서 합리적인 loss를 보여주는 경우가 있었기에, 문제가 있다고 생각했다.
+
+→ 또 학습결과를 확인해보니, a man in a man in a man과 같이, 이미지와 상관 없이 in, a, man 이 3단어에 대해서만 반응하는 것을 볼 수 있었다.
+
+나는 우선 모델에 문제가 있을 것이라 가정하고 살펴보았다.
+
+근데 내가 구성한 모델에는 softmax가 존재하지 않는다. 
+
+(원본 코드에서 perplexity를 정의한 부분에서 softmax를 거치지 않고 perplexity를 정의하는 것에서 위화감이 들었음. )
+
+그래서 Cross Entropy에 문제가 생긴것이가 생각을 했다.
+
+다만, torch가 제공하는 CrossEntropyLoss는 softmax연산을 취하고서 작업을 하기에 해당 문제는 아니었다.
+
+두번째로 떠오른 것은 BN layer이다. momentum을 0.001로 설정을 해두었는데, 이렇게 되면 batch의 평균이 아닌 all train set의 평균을 기준으로 계산을 하게 된다. 이런 문제가 있어 보여, BN layer를 없애고 학습을 시켜 보았다. 
+
+근데 parameter를 확인해보니 len(vocab) = 52로 나오는 등 오류가 있는 것을 확인할 수 있었다. 이를 수정하자. 
+
+→ 다시 학습을 시켰을때는 이런 문제가 사라졌다. 
+
+→ 이때는 not in list가 계속 떳었는데, 지금은 다른 hidden 크기가 2048이란 뜬금없는 값이 나오는게 문제이다. 
+
+가장큰 실수는 <pad>를 넣어두지 않은것이다.
+
+따로 호출하는 경우를 본적이 없어서 몰랐는데, 
+
+pack_padded_sequence 함수에서 사용하는 녀석이다. 
+
+중간에 짧은 문장이 있을 경우 pad token이 연산 중간에 들어오게 되어서 연산을 진행하게 되고, 이로 인해서 연산시간이 느려지는 것
+
+→ 이를 방지하려고 index =0 인 token을 뒤로 밀어넣는데, 나는 <pad>를 넣지 않았기에 <start>를 기준으로 정렬이 되었고, 효과는 없었겠지만, 기대하지 않은 영향을 일으켰을 걸로 생각된다. 
+
+그보단 2048로 hidden layer가 형성되는 문제가 있는데, 이를 해결해야 한다. 
 
 ## BLEU - score
 
