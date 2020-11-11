@@ -245,7 +245,33 @@ pack_padded_sequence 함수에서 사용하는 녀석이다.
 
 → 이를 방지하려고 index =0 인 token을 뒤로 밀어넣는데, 나는 <pad>를 넣지 않았기에 <start>를 기준으로 정렬이 되었고, 효과는 없었겠지만, 기대하지 않은 영향을 일으켰을 걸로 생각된다. 
 
-그보단 2048로 hidden layer가 형성되는 문제가 있는데, 이를 해결해야 한다. 
+그보단 2048로 hidden layer가 형성되는 문제가 있는데, 이를 해결해야 한다.  
+
+일단은 learning rate을 0.005로 올려보고 작업을 돌려보았는데, epoch = 5에서 나온 결과를 보면 
+
+"a", "man", "clean" 단어들에 overfitting된 경향을 확인해볼수 있었다.
+
+일단은 epoch = 10까지 작업을 하고서, test를 진행해보자.
+
+test를 한 결과 이미지와 무관하게 
+
+<start> a man is standing in a field with a large <not in list> <end>
+
+가 나오는 것을 확인할 수 있었다.
+
+weight decay를 적용하지 않아서 overfitting이 된게 아닌가 생각된다.
+
+나온 사례 1:
+
+![Show%20and%20Tell%20A%20Neural%20Image%20Caption%20Generator%20c1e9a176aa3042e6adb7f85fd30e70ee/Untitled%205.png](Show%20and%20Tell%20A%20Neural%20Image%20Caption%20Generator%20c1e9a176aa3042e6adb7f85fd30e70ee/Untitled%205.png)
+
+나온 사례 2:
+
+![Show%20and%20Tell%20A%20Neural%20Image%20Caption%20Generator%20c1e9a176aa3042e6adb7f85fd30e70ee/Untitled%206.png](Show%20and%20Tell%20A%20Neural%20Image%20Caption%20Generator%20c1e9a176aa3042e6adb7f85fd30e70ee/Untitled%206.png)
+
+이 두가지 이미지만 나옴.
+
+BLEU score를 측정하는 함수를 만들어서, 이를 적용해야할듯.
 
 ## BLEU - score
 
